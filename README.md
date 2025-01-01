@@ -3,6 +3,11 @@
 This is golang/gioui remake of my old android application written in java that I have made for my kids
 to learn simple maths for 1st grade scholl kids.
 
+Because gioui application can be compiled to static html (webassemble) you can try the app also directly 
+in your browser
+
+<a href="https://xdobry.github.io/rechnenfuererstklaessler/">Try the App directly in your Browser!</a>
+
 ![screenshot](docs/main.png)
 
 
