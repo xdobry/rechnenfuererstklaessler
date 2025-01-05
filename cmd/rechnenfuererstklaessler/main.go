@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/png"
 	"log"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"time"
@@ -22,16 +23,59 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/ebitengine/oto/v3"
+	"github.com/hajimehoshi/go-mp3"
 )
 
 //go:embed resources/title.png
 var pngData []byte
 
+//go:embed resources/begin.mp3
+var beginMp3 []byte
+
+//go:embed resources/finish.mp3
+var finishMp3 []byte
+
+//go:embed resources/neg1.mp3
+var neg1Mp3 []byte
+
+//go:embed resources/neg2.mp3
+var neg2Mp3 []byte
+
+//go:embed resources/neg3.mp3
+var neg3Mp3 []byte
+
+//go:embed resources/pos1.mp3
+var pos1Mp3 []byte
+
+//go:embed resources/pos2.mp3
+var pos2Mp3 []byte
+
+//go:embed resources/pos3.mp3
+var pos3Mp3 []byte
+
+//go:embed resources/applause.mp3
+var applauseMp3 []byte
+
+const (
+	AUDIO_BEGIN = iota
+	AUDIO_FINISH
+	AUDIO_NEG1
+	AUDIO_NEG2
+	AUDIO_NEG3
+	AUDIO_POS1
+	AUDIO_POS2
+	AUDIO_POS3
+	AUDIO_APPLOAUSE
+)
+
 func main() {
+	audio_chan := make(chan int)
+	go playAudio(audio_chan)
 	go func() {
 		window := new(app.Window)
 		window.Option(app.Title("Rechnen für Erstklässler"))
-		err := run(window)
+		err := run(window, audio_chan)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -78,7 +122,39 @@ type Exercise struct {
 	dialogClick   widget.Clickable
 }
 
-func run(window *app.Window) error {
+func playAudio(audio_chan chan int) {
+	oto_op := &oto.NewContextOptions{}
+	oto_op.SampleRate = 44100
+	oto_op.ChannelCount = 2
+	oto_op.Format = oto.FormatSignedInt16LE
+
+	audio_bytes := [...][]byte{beginMp3, finishMp3, neg1Mp3, neg2Mp3, neg3Mp3, pos1Mp3, pos2Mp3, pos3Mp3, applauseMp3}
+
+	context, readyChan, err := oto.NewContext(oto_op)
+	if err != nil {
+		panic(err)
+	}
+	<-readyChan
+
+	var players [len(audio_bytes)]*oto.Player
+	// TODO it decode the mp3 again and again during every play
+	// so it has performance issue. But Seek and Reset does not work
+	// I could not find any better solution for quick
+	for index := range audio_chan {
+		var myplayer = players[index]
+		if myplayer == nil || !myplayer.IsPlaying() {
+			decodedMp3, err := mp3.NewDecoder(bytes.NewReader(audio_bytes[index]))
+			if err != nil {
+				panic("mp3.NewDecoder failed: " + err.Error())
+			}
+			myplayer = context.NewPlayer(decodedMp3)
+			players[index] = myplayer
+			myplayer.Play()
+		}
+	}
+}
+
+func run(window *app.Window, audio_chan chan int) error {
 	img, err := png.Decode(bytes.NewReader(pngData))
 	if err != nil {
 		log.Fatalf("failed to decode PNG: %v", err)
@@ -87,6 +163,7 @@ func run(window *app.Window) error {
 
 	theme := material.NewTheme()
 	theme.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+
 	var ops op.Ops
 	var exerciseClickables [EXERCISES_COUNT]widget.Clickable
 	var isTitle = true
@@ -103,6 +180,7 @@ func run(window *app.Window) error {
 					if exerciseClickables[i].Clicked(gtx) {
 						isTitle = false
 						excercise.startExercise(TaskType(i), window, gtx)
+						audio_chan <- AUDIO_BEGIN
 						break
 					}
 				}
@@ -135,7 +213,7 @@ func run(window *app.Window) error {
 						}))
 				})
 			} else {
-				if exerciseUi(&excercise, gtx, theme, window) {
+				if exerciseUi(&excercise, gtx, theme, window, audio_chan) {
 					isTitle = true
 				}
 			}
@@ -144,7 +222,11 @@ func run(window *app.Window) error {
 	}
 }
 
-func exerciseUi(exercise *Exercise, gtx layout.Context, theme *material.Theme, window *app.Window) bool {
+func randRange(min int, max int) int {
+	return rand.IntN(max-min+1) + min
+}
+
+func exerciseUi(exercise *Exercise, gtx layout.Context, theme *material.Theme, window *app.Window, audio_chan chan int) bool {
 	var par2 string
 	var result string
 	var exerciseFinished = false
@@ -152,8 +234,13 @@ func exerciseUi(exercise *Exercise, gtx layout.Context, theme *material.Theme, w
 		diff := gtx.Now.UnixMilli() - exercise.resultTime
 		if diff >= 1000 {
 			if exercise.wrongResults+exercise.okResults >= 10 {
-				exercise.showDialog = true
-				exercise.dialogMessage = exercise.getFinalMessage()
+				if !exercise.showDialog {
+					if exercise.wrongResults == 0 {
+						audio_chan <- AUDIO_APPLOAUSE
+					}
+					exercise.showDialog = true
+					exercise.dialogMessage = exercise.getFinalMessage()
+				}
 			} else {
 				exercise.newTask(window, gtx)
 			}
@@ -203,6 +290,7 @@ func exerciseUi(exercise *Exercise, gtx layout.Context, theme *material.Theme, w
 					exercise.userResult = number
 				}
 				if exercise.task.checkResult(exercise.userResult) {
+					audio_chan <- randRange(AUDIO_POS1, AUDIO_POS3)
 					if exercise.tries == 0 {
 						exercise.okResults++
 						var curr_score ScoreType
@@ -215,6 +303,7 @@ func exerciseUi(exercise *Exercise, gtx layout.Context, theme *material.Theme, w
 					}
 				} else {
 					if exercise.isFinalResult() {
+						audio_chan <- randRange(AUDIO_NEG1, AUDIO_NEG3)
 						if exercise.tries == 0 {
 							exercise.wrongResults++
 							exercise.resultHistory = append(exercise.resultHistory, score_wrong)
@@ -304,9 +393,9 @@ func exerciseUi(exercise *Exercise, gtx layout.Context, theme *material.Theme, w
 }
 
 func drawNumberButtons(gtx layout.Context, theme *material.Theme, exercise *Exercise) layout.Dimensions {
-	const gap = 12
-	const width = 64
-	const height = 64
+	gap := gtx.Metric.Dp(unit.Dp(16))
+	width := gtx.Metric.Dp(unit.Dp(64))
+	height := gtx.Metric.Dp(unit.Dp(64))
 	size := image.Pt(11*width+9*gap, height*2+gap)
 	gtx.Constraints.Min.X = width
 	gtx.Constraints.Max.X = width

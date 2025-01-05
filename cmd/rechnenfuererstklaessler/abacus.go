@@ -10,6 +10,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 )
 
 type Abacus struct {
@@ -88,8 +89,8 @@ func (exercise *Exercise) displayAbacusMinus(sum int, par int) {
 }
 
 func drawAbacus(gtx layout.Context, exercise *Exercise) layout.Dimensions {
-	const gap = 8
-	const radius = 32
+	gap := gtx.Metric.Dp(unit.Dp(8))
+	radius := gtx.Metric.Dp(unit.Dp(32))
 	size := image.Pt(10*radius+9*gap+gap, radius*2+gap)
 	defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, &exercise.abacusClick)

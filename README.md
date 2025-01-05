@@ -25,7 +25,6 @@ I suppose that many other similar simple maths apps was done after it.
 # Open Points
 
 * The html variant does not show all utf8 characters.
-* The sound effects are not ported yet
 
 # Windows compilation
 

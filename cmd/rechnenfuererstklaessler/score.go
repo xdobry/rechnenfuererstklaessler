@@ -10,12 +10,13 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 )
 
 func drawResult(gtx layout.Context, exercise *Exercise) layout.Dimensions {
-	const height = 32
-	const width = 32
-	const gap = 8
+	height := gtx.Metric.Dp(unit.Dp(32))
+	width := gtx.Metric.Dp(unit.Dp(32))
+	gap := gtx.Metric.Dp(unit.Dp(8))
 	mygap := 0
 	colorYellow := color.NRGBA{R: 0xFF, G: 0xFF, A: 0xFF}
 	colorRed := color.NRGBA{R: 0xFF, A: 0xFF}
@@ -27,9 +28,9 @@ func drawResult(gtx layout.Context, exercise *Exercise) layout.Dimensions {
 	for index, score := range exercise.resultHistory {
 		offset := op.Offset(image.Point{X: index * (width + gap)}).Push(gtx.Ops)
 		if score == score_perfect {
-			drawStar(gtx, width/2, width/2, width/2, 5, colorYellow)
+			drawStar(gtx, float32(width/2), float32(width/2), float32(width/2), 5, colorYellow)
 		} else if score == score_second {
-			drawStar(gtx, width/2, width/2, width/2, 5, colorBlack)
+			drawStar(gtx, float32(width/2), float32(width/2), float32(width/2), 5, colorBlack)
 		} else {
 			drawDiagonalCross(gtx, width, height, colorRed)
 		}
